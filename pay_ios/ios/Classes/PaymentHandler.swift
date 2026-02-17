@@ -42,6 +42,7 @@ class PaymentHandler: NSObject {
   var baseSummaryItems: [PKPaymentSummaryItem] = []
   
   var creditSurchargeRate: NSDecimalNumber = .zero
+  var creditSurchargeLabel: String?
   /// Holds the current status of the payment process.
   var paymentHandlerStatus: PaymentHandlerStatus!
   
@@ -80,6 +81,7 @@ class PaymentHandler: NSObject {
     paymentHandlerStatus = .started
     
     self.creditSurchargeRate = .zero // Reset to 0 before every new payment
+    self.creditSurchargeLabel = nil  // Reset custom label
 
     if let configDict = PaymentHandler.extractPaymentConfiguration(from: paymentConfiguration) {
         if let processingFee = configDict["processingFee"] as? [String: Any],
@@ -88,6 +90,9 @@ class PaymentHandler: NSObject {
             // Convert "2.5" (percentage) to "0.025" (multiplier)
             let multiplier = creditRate / 100.0
             self.creditSurchargeRate = NSDecimalNumber(value: multiplier)
+            
+            // Pull optional custom label from config
+            self.creditSurchargeLabel = processingFee["label"] as? String
         }
     }
     
@@ -225,9 +230,14 @@ let isCredit = paymentMethod.type == .credit
             let surchargeAmount = rawSurcharge.rounding(accordingToBehavior: behavior)
             
             // 4. Create the Surcharge Line Item
-            // Optional: Format the percentage for the label (e.g. "Credit Card Fee (2.5%)")
-            let percentage = self.creditSurchargeRate.multiplying(byPowerOf10: 2)
-            let surchargeLabel = "Credit Card Fee (\(percentage.stringValue)%)"
+            // Use custom label from config if provided, otherwise generate default
+            let surchargeLabel: String
+            if let customLabel = self.creditSurchargeLabel {
+                surchargeLabel = customLabel
+            } else {
+                let percentage = self.creditSurchargeRate.multiplying(byPowerOf10: 2)
+                surchargeLabel = "Credit Card Fee (\(percentage.stringValue)%)"
+            }
             
             let surchargeItem = PKPaymentSummaryItem(label: surchargeLabel, amount: surchargeAmount)
             // Note: If you want to show it as an additional cost, usually types are final.
@@ -296,4 +306,3 @@ extension PKPaymentMethodType {
         }
     }
 }
-
